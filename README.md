@@ -65,11 +65,23 @@ the path has processed since last time.
 
 2. There will be some latency between the simulator running and the path planner returning a path, with optimized code usually its not very long maybe just 1-3 time steps. During this delay the simulator will continue using points that it was last given, because of this its a good idea to store the last points you have used so you can have a smooth transition. previous_path_x, and previous_path_y can be helpful for this transition since they show the last points given to the simulator controller with the processed points already removed. You would either return a path that extends this previous path or make sure to create a new path that has a smooth transition with this last path.
 
+Every turn the car sets a goal position and a ref_vel.
+To reach that goal at that ref_vel, the path to the goal should be spaced accordingly.
+The distance to target may be divided into just a few points(very high speed) or several points (very low speed).
+In general there will always be more than 50 point divisions to target (say 200) since we make sure we do not go above speed limit.
+Regardless of number of point divisions to target, the car makes sure it has 50 points in its vector to travel.
+This 50 points are supposed to be travelled within 1 second (.02 seconds each point), however, a loop in a simulator takes less than a second.
+Hence, just a portion of those 50 points are crossed. 
+The remaining points in the vector are transferred to the vector of the next loop.
+The next loop vector then gets filled until it reaches 50 with new points that obey this next loop's goal position and a ref_vel.
+The process then repeats.
+
+
 ## Tips
 
 A really helpful resource for doing this project and creating smooth trajectories was using http://kluge.in-chemnitz.de/opensource/spline/, the spline function is in a single hearder file is really easy to use.
 
-Aaron Starting Code
+codeAaron Starting Code
 https://www.youtube.com/watch?time_continue=4974&v=7sI3VHFPP0w&feature=emb_logo
 
 
