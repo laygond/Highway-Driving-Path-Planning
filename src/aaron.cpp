@@ -7,6 +7,7 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "helpers.h"
 #include "json.hpp"
+#include "spline.h"
 
 // for convenience
 using nlohmann::json;
@@ -92,6 +93,10 @@ int main() {
 
           vector<double> next_x_vals;
           vector<double> next_y_vals;
+
+          int lane = 1  //lanes are defined as (leftmost,middle,rightmost)=(0,1,2)
+          double ref_vel = 49.5 //mph (it is close to speed limit of 50mph)
+          int prev_size = previous_path_x.size(); //simulator made use of some of the previous path points therefore alway less than 50
 
           /**
            * TODO: define a path made up of (x,y) points that the car will visit
