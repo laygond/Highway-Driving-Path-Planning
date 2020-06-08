@@ -1,2 +1,3 @@
 set_git.sh
 build/
+.vscode/
