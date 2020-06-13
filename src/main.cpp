@@ -47,13 +47,17 @@ int main() {
     map_waypoints_dy.push_back(d_y); // Frenets d unit vector y component
   }
 
-  double max_s = 6945.554; // The max s value before wrapping around the track back to 0
-  int lane = 1;            //lanes are defined as (leftmost,middle,rightmost)=(0,1,2)
-  double ref_vel = 0.0;   //mph (max should be close to speed limit of 50mph)
+  double max_s = 6945.554;    // meters. The max s value before wrapping around the track back to 0
+  int lane = 1;               // lanes are defined as (leftmost,middle,rightmost)=(0,1,2)
+  double max_speed = 22.0;    // [m/s] (max should be close to speed limit)
+  double speed_limit = 22.352;// [m/s]. Equivalent to 50mph
+  double safe_distance = 30.0;// meters. Minimum front and back distance for car to to take decisions.
+  double ref_speed = 0.0;     // [m/s]. End point speed in trajectory vector. Zero since it starts from rest.
+  int count = 0;
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy,
-               &ref_vel,&lane]
+               &count,&max_speed,&lane,&speed_limit,&safe_distance,&ref_speed,&max_s]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -85,45 +89,42 @@ int main() {
           double end_path_s = j[1]["end_path_s"];
           double end_path_d = j[1]["end_path_d"];
 
-          // If simulator has already run once assign car_s to last s from previous path
-          int prev_size = previous_path_x.size(); 
-          if (prev_size > 0) 
-          { 
-            car_s = end_path_s;
-          }
-
           // Sensor Fusion Data, a list of all other cars on the same side of the road. (3 right side lanes)
           auto sensor_fusion = j[1]["sensor_fusion"];
           
 
           // Analyze Sensor Fusion Data (to raise flags)
-          bool too_close = false; 
+          bool too_close = false; //to front car
+          double front_car_speed;
+          bool left_lane_free  = false;
+          bool right_lane_free = false; 
           for(int i=0; i<sensor_fusion.size(); i++)
           { 
             float d = sensor_fusion[i][6];
-            // Check cars in my lane
+            // Check car in front of my lane
             if( d<(2+4*lane+2) && d >(2+4*lane-2) )
             { 
               double vx = sensor_fusion[i][3];
               double vy = sensor_fusion[i][4];
               double check_speed = sqrt(vx*vx+vy*vy);
               double check_car_s = sensor_fusion[i][5]; 
-              check_car_s+=((double)prev_size*0.02*check_speed); 
-              if ( check_car_s>car_s && (check_car_s-car_s)<30 )
+              if ( check_car_s>car_s && (check_car_s-car_s)< safe_distance )
               {
-                too_close = true; 
+                too_close = true;
+                front_car_speed = check_speed; 
               }
             }
           }
 
           // Evaluate Flags
+          double target_speed; //speed the ego car wants to reach
           if (too_close)
           {
-            ref_vel-=.224;
+            target_speed = front_car_speed;
           }
-          else if (ref_vel< 49.5)
+          else
           {
-            ref_vel+=.224;
+            target_speed = max_speed;
           }
 
           /**
@@ -140,43 +141,58 @@ int main() {
           vector<double> ptsx;  //vector of x points for Step Procedure
           vector<double> ptsy;  //vector of y points for Step Procedure
 
-          // reference starting point as where the car is or previous paths end point
-          double ref_x = car_x;
-          double ref_y = car_y;
-          double ref_yaw = deg2rad(car_yaw); 
+          // reference as where the car currently is or previous paths end point (map perspective)
+          double ref_x;
+          double ref_y;
+          double ref_x_prev;
+          double ref_y_prev;
+          double ref_yaw; 
 
           // Collect previous and current 'pts(x,y)' waypoints
-          if(prev_size < 2) 
+          int prev_size = previous_path_x.size(); 
+          std::cout << "[INFO] prev size: " << prev_size << std::endl;
+          if(prev_size < 1) 
           { 
-              double prev_car_x = car_x - cos(car_yaw); //go backwards in time with the angle to generate 'fake' previous
-              double prev_car_y = car_y - sin(car_yaw); 
+            std::cout << "[INFO] first round " << count << std::endl;
+            count+=1;
+            ref_x = car_x;
+            ref_y = car_y;
+            ref_yaw = deg2rad(car_yaw);
 
-              ptsx.push_back(prev_car_x);
-              ptsx.push_back(car_x); 
-              
-              ptsy.push_back(prev_car_y);
-              ptsy.push_back(car_y); 
+            ref_x_prev = ref_x - cos(car_yaw); //go backwards in time with the angle to generate 'fake' previous
+            ref_y_prev = ref_y - sin(car_yaw); // times the length of the car ??????
+
+            ptsx.push_back(ref_x_prev);
+            ptsx.push_back(ref_x); 
+            
+            ptsy.push_back(ref_y_prev);
+            ptsy.push_back(ref_y); 
+
+            end_path_s = car_s; //assign last position to current position
           } 
           else
           {
-              ref_x = previous_path_x[prev_size-1];
-              ref_y = previous_path_y[prev_size-1]; 
-
-              double ref_x_prev = previous_path_x[prev_size-2];
-              double ref_y_prev = previous_path_y[prev_size-2];
-              ref_yaw = atan2(ref_y-ref_y_prev, ref_x-ref_x_prev); 
-
-              ptsx.push_back(ref_x_prev);
-              ptsx.push_back(ref_x); 
               
-              ptsy.push_back(ref_y_prev);
-              ptsy.push_back(ref_y); 
+            std::cout << "[INFO] second round " << std::endl;
+
+            ref_x = previous_path_x[prev_size-1];
+            ref_y = previous_path_y[prev_size-1]; 
+
+            ref_x_prev = previous_path_x[prev_size-2];
+            ref_y_prev = previous_path_y[prev_size-2];
+            ref_yaw = atan2(ref_y-ref_y_prev, ref_x-ref_x_prev); 
+
+            ptsx.push_back(ref_x_prev);
+            ptsx.push_back(ref_x); 
+            
+            ptsy.push_back(ref_y_prev);
+            ptsy.push_back(ref_y); 
           } 
 
           // Collect {30m,60m,90m} 'pts(x,y)' waypoints
-          vector<double> next_wp0 = getXY(car_s+30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s+60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s+90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y); 
+          vector<double> next_wp0 = getXY(end_path_s+30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp1 = getXY(end_path_s+60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp2 = getXY(end_path_s+90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y); 
 
           ptsx.push_back(next_wp0[0]);
           ptsx.push_back(next_wp1[0]);
@@ -194,6 +210,8 @@ int main() {
 
             ptsx[i] = (shift_x *cos(0-ref_yaw) - shift_y*sin(0-ref_yaw));
             ptsy[i] = (shift_x *sin(0-ref_yaw) + shift_y*cos(0-ref_yaw));
+            std::cout << "[INFO] x " << ptsx[i] << std::endl;
+            std::cout << "[INFO] y " << ptsy[i] <<std::endl;
           }
 
           // Define and set up spline
@@ -213,33 +231,52 @@ int main() {
           } 
 
           // Create Target/Goal Point (from car's reference)
-          double target_x = 30.0;
+          double target_x = 30.0; //meters
           double target_y = s(target_x);
           double target_dist = sqrt((target_x)*(target_x)+(target_y)*(target_y)); 
           
           // Refill empty 'next_val' slots with new points that the car will visit every .02 seconds
-          double x_add_on = 0;   // temporal variable for allocation of operations
+          // As before reference as where the car currently is or previous paths end point
+          // double ref_vx = (ref_x-ref_x_prev)/0.02;
+          // double ref_vy = (ref_y-ref_y_prev)/0.02;
+          // double ref_speed = sqrt(ref_vx*ref_vx + ref_vy*ref_vy); 
+          double x_local = 0.0; // end point of trajectory in local car reference
+          double y_local;
+          std::cout << "[INFO] ref_speed: " << ref_speed << std::endl;
+          std::cout << "[INFO] target_speed: " << target_speed << std::endl;
           for (int i=1; i<=(50-previous_path_x.size()); i++)
           { 
-            double N = (target_dist/(0.02*ref_vel/2.24 )); // spacing between points so that car travels at ref_vel
-            double x_point = x_add_on+(target_x)/N;
-            double y_point = s(x_point); 
-            x_add_on = x_point; 
-            double x_ref = x_point;
-            double y_ref = y_point; 
-            x_point = x_ref*cos(ref_yaw) - y_ref*sin(ref_yaw); //rotate back to map
-            y_point = x_ref*sin(ref_yaw) + y_ref*cos(ref_yaw); 
-            x_point += ref_x;
-            y_point += ref_y; 
-            next_x_vals.push_back(x_point);
-            next_y_vals.push_back(y_point); 
+            if (ref_speed > target_speed)
+            {
+              std::cout << "[INFO] decrease" << ref_speed << std::endl;
+              ref_speed -= 0.1;  //[m/s] equivalent to acceleration of -5 [m/s^2]
+            }
+            else if (ref_speed < target_speed)
+            {
+              std::cout << "[INFO] increase" << ref_speed << std::endl;
+              ref_speed += 0.1;  //[m/s] equivalent to acceleration of 5 [m/s^2]
+            }
+            double N = (target_dist/(0.02*ref_speed)); // spacing between points so that car travels at ref_speed
+            x_local = x_local + (target_x)/N;
+            y_local = s(x_local); 
+            std::cout << "[INFO] x_local: " << x_local << std::endl;
+            std::cout << "[INFO] y_local: " << y_local << std::endl;
+            double x_map = x_local*cos(ref_yaw) - y_local*sin(ref_yaw) + x_local; //rotate back to map
+            double y_map = x_local*sin(ref_yaw) + y_local*cos(ref_yaw) + y_local; 
+            std::cout << "[INFO] x_map: " << x_map << std::endl;
+            std::cout << "[INFO] y_map: " << y_map << std::endl;
+
+            next_x_vals.push_back(x_map);
+            next_y_vals.push_back(y_map); 
           }
-          
+          std::cout << "[INFO] next val size: " << next_y_vals.size() << std::endl;
+
           // Send data back to Simulator
           json msgJson;
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
           auto msg = "42[\"control\","+ msgJson.dump()+"]";
+          std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
 
         }  // end "telemetry" if
