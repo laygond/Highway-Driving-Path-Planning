@@ -49,15 +49,14 @@ int main() {
 
   double max_s = 6945.554;    // meters. The max s value before wrapping around the track back to 0
   int lane = 1;               // lanes are defined as (leftmost,middle,rightmost)=(0,1,2)
-  double max_speed = 22.0;    // [m/s] (max should be close to speed limit)
+  double max_speed = 22.0;    // [m/s] (max should be close but under speed limit)
   double speed_limit = 22.352;// [m/s]. Equivalent to 50mph
   double safe_distance = 30.0;// meters. Minimum front and back distance for car to to take decisions.
   double ref_speed = 0.0;     // [m/s]. End point speed in trajectory vector. Zero since it starts from rest.
-  int count = 0;
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy,
-               &count,&max_speed,&lane,&speed_limit,&safe_distance,&ref_speed,&max_s]
+               &max_speed,&lane,&speed_limit,&safe_distance,&ref_speed,&max_s]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -96,6 +95,7 @@ int main() {
           // Analyze Sensor Fusion Data (to raise flags)
           bool too_close = false; //to front car
           double front_car_speed;
+          double front_car_distance =  safe_distance +1; // greater (farther) than safe_distance
           bool left_lane_free  = false;
           bool right_lane_free = false; 
           for(int i=0; i<sensor_fusion.size(); i++)
@@ -110,8 +110,9 @@ int main() {
               double check_car_s = sensor_fusion[i][5]; 
               if ( check_car_s>car_s && (check_car_s-car_s)< safe_distance )
               {
-                too_close = true;
-                front_car_speed = check_speed; 
+                too_close = true;  //assumes one car within safety distance range
+                front_car_speed = check_speed;
+                front_car_distance = check_car_s-car_s; 
               }
             }
           }
@@ -150,11 +151,8 @@ int main() {
 
           // Collect previous and current 'pts(x,y)' waypoints
           int prev_size = previous_path_x.size(); 
-          std::cout << "[INFO] prev size: " << prev_size << std::endl;
           if(prev_size < 1) 
-          { 
-            std::cout << "[INFO] first round " << count << std::endl;
-            count+=1;
+          {
             ref_x = car_x;
             ref_y = car_y;
             ref_yaw = deg2rad(car_yaw);
@@ -172,9 +170,6 @@ int main() {
           } 
           else
           {
-              
-            std::cout << "[INFO] second round " << std::endl;
-
             ref_x = previous_path_x[prev_size-1];
             ref_y = previous_path_y[prev_size-1]; 
 
@@ -210,8 +205,6 @@ int main() {
 
             ptsx[i] = (shift_x *cos(0-ref_yaw) - shift_y*sin(0-ref_yaw));
             ptsy[i] = (shift_x *sin(0-ref_yaw) + shift_y*cos(0-ref_yaw));
-            std::cout << "[INFO] x " << ptsx[i] << std::endl;
-            std::cout << "[INFO] y " << ptsy[i] <<std::endl;
           }
 
           // Define and set up spline
@@ -230,54 +223,45 @@ int main() {
             next_y_vals.push_back(previous_path_y[i]);
           } 
 
-          // Create Target/Goal Point (from car's reference)
+          // Create Target/Goal Point (from car's end point reference)
           double target_x = 30.0; //meters
           double target_y = s(target_x);
           double target_dist = sqrt((target_x)*(target_x)+(target_y)*(target_y)); 
           
           // Refill empty 'next_val' slots with new points that the car will visit every .02 seconds
           // As before reference as where the car currently is or previous paths end point
-          // double ref_vx = (ref_x-ref_x_prev)/0.02;
-          // double ref_vy = (ref_y-ref_y_prev)/0.02;
-          // double ref_speed = sqrt(ref_vx*ref_vx + ref_vy*ref_vy); 
-          double x_local = 0.0; // end point of trajectory in local car reference
+          double x_local = 0.0; // (x,y) end point of trajectory in local car's end point reference
           double y_local;
           std::cout << "[INFO] ref_speed: " << ref_speed << std::endl;
           std::cout << "[INFO] target_speed: " << target_speed << std::endl;
           for (int i=1; i<=(50-previous_path_x.size()); i++)
           { 
-            if (ref_speed > target_speed)
+            if ( ref_speed > target_speed || front_car_distance < safe_distance/3 )
             {
-              std::cout << "[INFO] decrease" << ref_speed << std::endl;
+              std::cout << "[INFO] ref_speed decrease: " << ref_speed << std::endl;
               ref_speed -= 0.1;  //[m/s] equivalent to acceleration of -5 [m/s^2]
             }
-            else if (ref_speed < target_speed)
+            else if ( ref_speed < target_speed )
             {
               std::cout << "[INFO] increase" << ref_speed << std::endl;
               ref_speed += 0.1;  //[m/s] equivalent to acceleration of 5 [m/s^2]
             }
+            ref_speed = std::max(0.00001,ref_speed);   // prevents from going backwards
             double N = (target_dist/(0.02*ref_speed)); // spacing between points so that car travels at ref_speed
             x_local = x_local + (target_x)/N;
             y_local = s(x_local); 
-            std::cout << "[INFO] x_local: " << x_local << std::endl;
-            std::cout << "[INFO] y_local: " << y_local << std::endl;
             double x_map = x_local*cos(ref_yaw) - y_local*sin(ref_yaw) + ref_x; //rotate back to map
             double y_map = x_local*sin(ref_yaw) + y_local*cos(ref_yaw) + ref_y; 
-            std::cout << "[INFO] x_map: " << x_map << std::endl;
-            std::cout << "[INFO] y_map: " << y_map << std::endl;
-            std::cout << "[INFO] ref_yaw: " << ref_yaw << std::endl;
 
             next_x_vals.push_back(x_map);
             next_y_vals.push_back(y_map); 
           }
-          std::cout << "[INFO] next val size: " << next_y_vals.size() << std::endl;
 
           // Send data back to Simulator
           json msgJson;
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
           auto msg = "42[\"control\","+ msgJson.dump()+"]";
-          std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
 
         }  // end "telemetry" if
