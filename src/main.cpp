@@ -168,7 +168,7 @@ int main() {
             ptsy.push_back(ref_y_prev);
             ptsy.push_back(ref_y); 
 
-            end_path_s = car_s; //assign last position to current position
+            end_path_s = car_s; //assign to current position since there is no last position yet
           } 
           else
           {
@@ -202,7 +202,7 @@ int main() {
           ptsy.push_back(next_wp1[1]);
           ptsy.push_back(next_wp2[1]); 
 
-          // Transform 'pts(x,y)' waypoints into car reference (to prevent problems with spline)
+          // Transform 'pts(x,y)' waypoints into car's end point reference (to prevent problems with spline)
           for (int i = 0; i < ptsx.size(); i++ ) 
           { 
             double shift_x = ptsx[i]-ref_x;
@@ -261,10 +261,11 @@ int main() {
             y_local = s(x_local); 
             std::cout << "[INFO] x_local: " << x_local << std::endl;
             std::cout << "[INFO] y_local: " << y_local << std::endl;
-            double x_map = x_local*cos(ref_yaw) - y_local*sin(ref_yaw) + x_local; //rotate back to map
-            double y_map = x_local*sin(ref_yaw) + y_local*cos(ref_yaw) + y_local; 
+            double x_map = x_local*cos(ref_yaw) - y_local*sin(ref_yaw) + ref_x; //rotate back to map
+            double y_map = x_local*sin(ref_yaw) + y_local*cos(ref_yaw) + ref_y; 
             std::cout << "[INFO] x_map: " << x_map << std::endl;
             std::cout << "[INFO] y_map: " << y_map << std::endl;
+            std::cout << "[INFO] ref_yaw: " << ref_yaw << std::endl;
 
             next_x_vals.push_back(x_map);
             next_y_vals.push_back(y_map); 
