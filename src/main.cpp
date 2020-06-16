@@ -96,32 +96,68 @@ int main() {
           bool too_close = false; //to front car
           double front_car_speed;
           double front_car_distance =  safe_distance +1; // greater (farther) than safe_distance
-          bool left_lane_free  = false;
-          bool right_lane_free = false; 
+          bool left_lane_free  = true;
+          bool right_lane_free = true; 
           for(int i=0; i<sensor_fusion.size(); i++)
           { 
+            // Read other car's data 
             float d = sensor_fusion[i][6];
-            // Check car in front of my lane
-            if( d<(2+4*lane+2) && d >(2+4*lane-2) )
+            double vx = sensor_fusion[i][3];
+            double vy = sensor_fusion[i][4];
+            double check_speed = sqrt(vx*vx+vy*vy);
+            double check_car_s = sensor_fusion[i][5];
+            double check_distance = check_car_s-car_s;
+            // Check for cars in front of my lane
+            if( d >(2+4*lane-2) && d<(2+4*lane+2) )
             { 
-              double vx = sensor_fusion[i][3];
-              double vy = sensor_fusion[i][4];
-              double check_speed = sqrt(vx*vx+vy*vy);
-              double check_car_s = sensor_fusion[i][5]; 
-              if ( check_car_s>car_s && (check_car_s-car_s)< safe_distance )
+              if ( check_car_s>car_s && check_distance<safe_distance )
               {
-                too_close = true;  //assumes one car within safety distance range
+                too_close = true;  //assumes one car within safety distance range(not multiple)
                 front_car_speed = check_speed;
-                front_car_distance = check_car_s-car_s; 
+                front_car_distance = check_distance; 
+              }
+            }
+            // Check for cars in right lane (front and back)
+            if (lane == 2) right_lane_free = false; 
+            else if (lane < 2)
+            {
+              if( d >(2+4*(lane+1)-2) && d<(2+4*(lane+1)+2) ) //lanewidth=4m
+              { 
+                if ( check_distance<1.5*safe_distance && check_distance>-safe_distance )
+                {
+                  right_lane_free = false;  
+                }
+              }
+            }
+            // Check for cars in left lane (front and back)
+            if (lane == 0) left_lane_free = false;
+            else if (lane > 0)
+            {
+              if ( d<(2+4*(lane-1)-2) && d<(2+4*(lane-1)+2) )
+              { 
+                if ( check_distance<1.5*safe_distance && check_distance>-safe_distance )
+                {
+                  left_lane_free = false;  
+                }
               }
             }
           }
 
           // Evaluate Flags
-          double target_speed; //speed the ego car wants to reach
+          double target_speed; //the speed the ego car wants to reach
           if (too_close)
           {
             target_speed = front_car_speed;
+            if (right_lane_free)
+            {
+              lane+=1;
+              target_speed = max_speed;
+            }
+            else if (left_lane_free)
+            {
+              lane-=1;
+              target_speed = max_speed;
+            }
           }
           else
           {
@@ -229,21 +265,16 @@ int main() {
           double target_dist = sqrt((target_x)*(target_x)+(target_y)*(target_y)); 
           
           // Refill empty 'next_val' slots with new points that the car will visit every .02 seconds
-          // As before reference as where the car currently is or previous paths end point
           double x_local = 0.0; // (x,y) end point of trajectory in local car's end point reference
           double y_local;
-          std::cout << "[INFO] ref_speed: " << ref_speed << std::endl;
-          std::cout << "[INFO] target_speed: " << target_speed << std::endl;
           for (int i=1; i<=(50-previous_path_x.size()); i++)
           { 
-            if ( ref_speed > target_speed || front_car_distance < safe_distance/3 )
+            if ( ref_speed > target_speed || front_car_distance < safe_distance/2 )
             {
-              std::cout << "[INFO] ref_speed decrease: " << ref_speed << std::endl;
               ref_speed -= 0.1;  //[m/s] equivalent to acceleration of -5 [m/s^2]
             }
             else if ( ref_speed < target_speed )
             {
-              std::cout << "[INFO] increase" << ref_speed << std::endl;
               ref_speed += 0.1;  //[m/s] equivalent to acceleration of 5 [m/s^2]
             }
             ref_speed = std::max(0.00001,ref_speed);   // prevents from going backwards
