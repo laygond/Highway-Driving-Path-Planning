@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script to run Highway Driving!
+# Script to run Highway Driving Planning!
 #
 # Written by Bryan Laygond
 #

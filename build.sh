@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script to build all components from scratch, using the maximum available CPU power
+# Script to delete old build folder and build it from scratch
 #
 # Given parameters are passed over to CMake.
 # Examples:
