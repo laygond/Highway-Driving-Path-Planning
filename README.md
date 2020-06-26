@@ -1,30 +1,101 @@
-# CarND-Path-Planning-Project
-Self-Driving Car Engineer Nanodegree Program
-   
-### Simulator.
-You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).  
+# Highway Path Planning
+The goal is to safely navigate around a virtual highway with other vehicles which are changing lanes while driving +-10 MPH of the 50 MPH speed limit. The ego car is provided a sparse map, and its location along with sensor fusion data to estimate the location of all the vehicles on the same side of the road. Behavioral planning and trajectory planning are used to create smooth, safe trajectories. This involves driving as close as possible to the 50 MPH speed limit, passing slower traffic when possible, avoid hitting other cars, driving inside of the marked road lanes at all times, and not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3. This repo uses [Udacity's CarND-Path-Planning-Project repo](https://github.com/udacity/CarND-Path-Planning-Project) as a base template and guide.
 
-To run the simulator on Mac/Linux, first make the binary file executable with the following command:
-```shell
-sudo chmod u+x {simulator_file_name}
+<p align="center"> 
+  <img src="./README_images/path_planning.gif">
+</p>
+
+[//]: # (List of Images used in this README.md)
+[image1]: ./README_images/highway_sim.png "Simulator"
+[image2]: ./README_images/pid_graph.png "PID Diagram"
+[image3]: ./README_images/p_control.gif "P Controller"
+[image4]: ./README_images/pd_control.gif "PD Controller"
+[image5]: ./README_images/drift.png "Drift"
+[image6]: ./README_images/pd_drift.gif "PD + Drift"
+[image7]: ./README_images/pid_drift.gif "PID + Drift"
+
+## Directory Structure
 ```
+.PID-Controller
+├── CMakeLists.txt        # Compiler Instructions
+├── cmakepatch.txt        # Sub Dependency for Mac
+├── install-mac.sh        # Dependency for Mac
+├── install-ubuntu.sh     # Dependency for Linux
+├── .gitignore            # git prevents unnecessary uploads
+├── README.md
+├── README_images         # Images used by README.md
+|   └── ...
+├── data                  # waypoints of center of highway
+|   └── highway_map.csv
+├── build.sh              # Compiles to create a build
+├── run.sh                # Runs the build
+└── src                   # C++ code
+    ├── json.hpp          # json helper functions
+    ├── main.cpp          
+    ├── helpers.h         # helper functions for main.cpp
+    ├── aaron.cpp         # extra: helped as base code for main 
+    ├── spline.h          # spline library
+    └── Eigen-3.3         # more math libraries
+        └── ...
+```
+Note: cmakepatch.txt is used by install-mac.sh. The [spline library](http://kluge.in-chemnitz.de/opensource/spline/) for creating smooth trajectories and [Aaron's starting code](https://www.youtube.com/watch?time_continue=4974&v=7sI3VHFPP0w&feature=emb_logo) were really helpful resources for doing this project.
+
+## Installation
+Open your terminal and type:
+```sh
+git clone https://github.com/laygond/Highway-Driving-Path-Planning.git
+cd Highway-Driving-Path-Planning
+sudo ./install-ubuntu.sh # (or './install-mac.sh')
+```
+This shell file will install the dependencies for our project
+- cmake >= 3.5
+- make >= 4.1 (Linux, Mac), 3.81 (Windows)
+- gcc/g++ >= 5.4
+- uWebSocketIO  # Allows communication bewtween c++ code and simulator
+
+Note: you might need to grant executable permission to the install shell files before running them: `chmod +x install-ubuntu.sh`. Running the install may also need the root permission prefix `sudo`. For Windows set-up and more details go to the 'Dependencies section' from [here](https://github.com/udacity/CarND-Path-Planning-Project)
+
+## Udacity's Simulator
+
+![alt text][image1]
+
+The simulator can be downloaded [here (Choose latest Term 3 Version)](https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2). After the simulator is downloaded, make sure it has executable permision: `chmod +x term3_sim.x86_64` (in the case of linux). 
+
+## Run Project
+You can either run the following or the simulator first. The order is irrelevant. In terminal go to your Highway-Driving-Path-Planning repo and type:
+```sh
+./build.sh
+./run.sh
+```
+Note: you might need to `chmod +x` the build and run shell files.
+
+## Project Analysis
+### Overview
+![alt text][image2]
+
+Path planning is an ambigous term that requires clarification for incomers. In this project we will deal with the Planning Subsystem. This means that information from the Perception Subsystem is already provided. For the Control subsystem the car uses a perfect controller and will visit every (x,y) point it recieves from the Planning subsystem.
+
+The Planning subsystem is formed by other modules
+- Route or Mission Planning
+- Prediction
+- Behavioral Planning
+- Trajectory Planning (Path Planner + Scheduler)
+
+<b>Path Planner:</b> refers only to the geometrical waypoints of a path with no information about time. A velocity profile or scheduler is needed to tell the ego car when it should be at each waypoint. Combining the path planner with the scheduler makes up the trajectory planner. Due to historical reason the term path planning is used interchangeably to relate to the entire planning subsystem, hence, causing confusion. 
+
+In this project the scheduler is fixed to .02 seconds. The car will visit every (x,y) point it receives in the list every .02 seconds. Therefore the objective in this module is to only focus on the path creation for the car to safely navigate and the distancing between between waypoints to control the speed and prevent jerk.
+
 
 ### Goals
-In this project your goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3.
+In this project your goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. 
 
-#### The map of the highway is in data/highway_map.txt
+The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3.
+
+### Perception Subsystem 
+#### The map of the highway is in data/highway_map.csv
 Each waypoint in the list contains  [x,y,s,dx,dy] values. x and y are the waypoint's map coordinate position, the s value is the distance along the road to get to that waypoint in meters, the dx and dy values define the unit normal vector pointing outward of the highway loop.
 
 The highway's waypoints loop around so the frenet s value, distance along the road, goes from 0 to 6945.554.
-
-## Basic Build Instructions
-
-1. Clone this repo.
-2. Make a build directory: `mkdir build && cd build`
-3. Compile: `cmake .. && make`
-4. Run it: `./path_planning`.
-
-Here is the data provided from the Simulator to the C++ Program
 
 #### Main car's localization Data (No Noise)
 
@@ -76,34 +147,3 @@ The remaining points in the vector are transferred to the vector of the next loo
 The next loop vector then gets filled until it reaches 50 with new points that obey this next loop's goal position and a ref_vel.
 The process then repeats.
 
-
-## Tips
-
-A really helpful resource for doing this project and creating smooth trajectories was using http://kluge.in-chemnitz.de/opensource/spline/, the spline function is in a single hearder file is really easy to use.
-
-codeAaron Starting Code
-https://www.youtube.com/watch?time_continue=4974&v=7sI3VHFPP0w&feature=emb_logo
-
-
----
-
-## Dependencies
-
-* cmake >= 3.5
-  * All OSes: [click here for installation instructions](https://cmake.org/install/)
-* make >= 4.1
-  * Linux: make is installed by default on most Linux distros
-  * Mac: [install Xcode command line tools to get make](https://developer.apple.com/xcode/features/)
-  * Windows: [Click here for installation instructions](http://gnuwin32.sourceforge.net/packages/make.htm)
-* gcc/g++ >= 5.4
-  * Linux: gcc / g++ is installed by default on most Linux distros
-  * Mac: same deal as make - [install Xcode command line tools]((https://developer.apple.com/xcode/features/)
-  * Windows: recommend using [MinGW](http://www.mingw.org/)
-* [uWebSockets](https://github.com/uWebSockets/uWebSockets)
-  * Run either `install-mac.sh` or `install-ubuntu.sh`.
-  * If you install from source, checkout to commit `e94b6e1`, i.e.
-    ```
-    git clone https://github.com/uWebSockets/uWebSockets 
-    cd uWebSockets
-    git checkout e94b6e1
-    ```
