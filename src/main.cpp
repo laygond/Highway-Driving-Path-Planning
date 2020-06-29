@@ -133,7 +133,7 @@ int main() {
             if (lane == 0) left_lane_free = false;
             else if (lane > 0)
             {
-              if ( d<(2+4*(lane-1)-2) && d<(2+4*(lane-1)+2) )
+              if ( d>(2+4*(lane-1)-2) && d<(2+4*(lane-1)+2) )
               { 
                 if ( check_distance<1.5*safe_distance && check_distance>-safe_distance )
                 {
