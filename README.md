@@ -13,7 +13,7 @@ The goal is to safely navigate around a virtual highway with other vehicles whic
 [image3]: ./README_images/sensor_fusion.png "Prediction"
 [image4]: ./README_images/behavior.png "Behavior"
 [image5]: ./README_images/match_speed.gif "Match Speed"
-[image6]: ./README_images/spline.png "spline"
+[image6]: ./README_images/spline.jpg "spline"
 
 ## Directory Structure
 ```
@@ -139,6 +139,8 @@ In this project the scheduler is fixed to .02 seconds. The car will visit every 
 The ego car makes sure its trajectory vector has always 50 points to travel. These 50 points are supposed to be travelled within 1 second (.02 seconds each point), however, a loop in a simulator takes less than a second. Hence, just a portion of those 50 points are crossed. From these remaining points the last two points from this trajectory vector are used as a starting guidance to generate the new points that will fill the 50-point trajectory vector. Once the behavioral planner agrees on what lane the car should be in and at what speed. The path planner will create a spline function 's()' based on these last two points plus 3 additional points spaced 30m apart in the s frenet direction and in the lane the behavior planner has stated to go: {'previous', 'current', 30m, 60m, 90m}. The next step is to select from this spline function points appropiately spaced so that it matches once again the speed the behavior planner has stated to go. These appropiately spaced chosen points should be added to the trajectory vector in (x,y) map format. To make things easier, instead of spacing the curvy path of the spline directly, the linear distance from the 'current' (x,y) point to a target point, say (30,s(30)), is spaced to the correct speed. This linear distance spacing or number of divisions, N, is applied to the x component of the target point: 30/N. Therefore the next three points after 'current' (x,y) that are along the spline function and follow the desired speed will be: {(x+30/N, s(x+30/N)),(x+2\*30/N, s(x+2\*30/N)),(x+3\*30/N, s(x+3\*30/N)),...} 
 
 ![alt text][image6]
+
+The 2 green dots (the last two points from the previous trajectory vector) represent the previous and current points needed to calculate the red spline function. d is the distance between the current and the target point. From d the number of divisions N can be derived to generate the purple waypoints along the spline.  
 
 NOTE: If the number of divisions N is small then trajectory waypoints are far apart which means very high speed. If N is big then trajectory waypoints are very close to each other which means very low speed.
 
