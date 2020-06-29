@@ -47,12 +47,12 @@ int main() {
     map_waypoints_dy.push_back(d_y); // Frenets d unit vector y component
   }
 
-  double max_s = 6945.554;    // meters. The max s value before wrapping around the track back to 0
-  int lane = 1;               // lanes are defined as (leftmost,middle,rightmost)=(0,1,2)
-  double max_speed = 22.0;    // [m/s] (max should be close but under speed limit)
-  double speed_limit = 22.352;// [m/s]. Equivalent to 50mph
-  double safe_distance = 30.0;// meters. Minimum front and back distance for car to to take decisions.
-  double ref_speed = 0.0;     // [m/s]. End point speed in trajectory vector. Zero since it starts from rest.
+  double max_s = 6945.554;     // meters. The max s value before wrapping around the track back to 0
+  int lane = 1;                // lanes are defined as (leftmost,middle,rightmost)=(0,1,2)
+  double max_speed = 22.0;     // [m/s] (max should be close but under speed limit)
+  double speed_limit = 22.352; // [m/s]. Equivalent to 50mph
+  double safe_distance = 49.96;// meters. Minimum front and back distance for car to to take decisions.
+  double ref_speed = 0.0;      // [m/s]. End point speed in trajectory vector. Zero since it starts from rest.
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy,
@@ -123,7 +123,7 @@ int main() {
             {
               if( d >(2+4*(lane+1)-2) && d<(2+4*(lane+1)+2) ) //lanewidth=4m
               { 
-                if ( check_distance<1.5*safe_distance && check_distance>-safe_distance )
+                if ( check_distance<safe_distance && check_distance>-safe_distance )
                 {
                   right_lane_free = false;  
                 }
@@ -135,7 +135,7 @@ int main() {
             {
               if ( d>(2+4*(lane-1)-2) && d<(2+4*(lane-1)+2) )
               { 
-                if ( check_distance<1.5*safe_distance && check_distance>-safe_distance )
+                if ( check_distance<safe_distance && check_distance>-safe_distance )
                 {
                   left_lane_free = false;  
                 }
